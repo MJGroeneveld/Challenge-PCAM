@@ -70,6 +70,8 @@ def Dataloaders(data_dir):
 
 
 def main (): 
+    # Inladen van data 
+
     #args - parser.parse_args()
     #train_loader, valid_loader = Dataloaders(args, './pcamv1')
     data_dir = path.join(path.dirname(__file__), "pcamv1")
