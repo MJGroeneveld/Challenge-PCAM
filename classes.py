@@ -33,16 +33,16 @@ class Dataset(torch.utils.data.Dataset):
 def Dataloaders(data_dir): 
 
     # Training set:
-    train_x = path.join(data_dir, "camelyonpath_level_2_split_train_x.h5")
-    train_y = path.join(data_dir, "camelyonpath_level_2_split_train_y_h5")
+    train_x = path.join(data_dir, "camelyonpatch_level_2_split_train_x.h5") 
+    train_y = path.join(data_dir, "camelyonpatch_level_2_split_train_y.h5")
 
     train_loader = torch.utils.data.DataLoader(
         Dataset(train_x, train_y)
     )
 
     # Validation set 
-    valid_x = path.join(data_dir, 'camelyonpath_level_2_split_valid_x.h5')
-    valid_y = path.join(data_dir, 'camelyonpath_level_2_split_valid_y_h5')
+    valid_x = path.join(data_dir, 'camelyonpatch_level_2_split_valid_x.h5')
+    valid_y = path.join(data_dir, 'camelyonpatch_level_2_split_valid_y.h5')
 
     valid_loader = torch.utils.data.DataLoader(
         Dataset(valid_x, valid_y)
@@ -80,3 +80,4 @@ def main ():
 
 if __name__ == '__main__': 
     main() 
+# %%
