@@ -43,8 +43,8 @@ def countLabels(filename):
 
 #%% read from train files
 def main(): 
-    train_x_file = h5py.File('keras_pcam/dataset/camelyonpatch_level_2_split_train_x.h5', 'r')
-    train_y_file = h5py.File('keras_pcam/dataset/camelyonpatch_level_2_split_train_y.h5', 'r')
+    train_x_file = h5py.File('pcamv1/camelyonpatch_level_2_split_train_x.h5', 'r')
+    train_y_file = h5py.File('pcamv1/camelyonpatch_level_2_split_train_y.h5', 'r')
 
     train_x = train_x_file['x']
     train_y = train_y_file['y']
@@ -53,8 +53,8 @@ def main():
     print('Shape train y: {}'.format(train_y.shape))  # labels with yes or no
 
     # read from valid files
-    valid_x_file = h5py.File('keras_pcam/dataset/camelyonpatch_level_2_split_valid_x.h5', 'r')
-    valid_y_file = h5py.File('keras_pcam/dataset/camelyonpatch_level_2_split_valid_y.h5', 'r')
+    valid_x_file = h5py.File('pcamv1/camelyonpatch_level_2_split_valid_x.h5', 'r')
+    valid_y_file = h5py.File('pcamv1/camelyonpatch_level_2_split_valid_y.h5', 'r')
 
     valid_x = valid_x_file['x']
     valid_y = valid_y_file['y']
@@ -62,11 +62,11 @@ def main():
     print('Shape valid x: {}'.format(valid_x.shape))  # the patches
     print('Shape valid y: {}'.format(valid_y.shape))  # labels with yes or no
 
-    #plotPatches(train_x, train_y)
-    #plotPatches(valid_x, valid_y)
+    plotPatches(train_x, train_y)
+    plotPatches(valid_x, valid_y)
 
-    #countLabels(train_y)
-    #countLabels(valid_y)
+    countLabels(train_y)
+    countLabels(valid_y)
 
 if __name__ == '__main__': 
     main()
