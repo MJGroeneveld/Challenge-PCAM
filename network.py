@@ -2,12 +2,11 @@ import torch
 import torch.nn as nn
 import torchvision
 import torch.nn.functional as F
-from dataloader import Dataloaders
 
 #Define a CNN
 class Network(nn.Module):
 
-    def __init__(self, num_classes):
+    def __init__(self):
         super(Network, self).__init__()
         self.conv_layer1 = nn.Conv2d(in_channels=3, out_channels=32, kernel_size=3)
         self.conv_layer2 = nn.Conv2d(in_channels=32, out_channels=32, kernel_size=3)
@@ -20,7 +19,7 @@ class Network(nn.Module):
         '''1600 because last conv layer = 64, * 5 * 5'''
         self.fc1 = nn.Linear(1600, 128)
         self.relu1 = nn.ReLU()
-        self.fc1 = nn.Linear(128, num_classes)
+        self.fc2 = nn.Linear(128, 1)
 
     def forward(self, x):
         out = self.conv_layer1(x)
@@ -39,27 +38,27 @@ class Network(nn.Module):
 
         return out
 
-model = Network(num_classes=100)
+#model = Network(num_classes=100)
 
-#Loss function
-criterion = nn.CrossEntropyLoss()
-
-#Optimizer
-optimizer = torch.optim.SGD(model.parameters(), lr=0.001, weight_decay=0.005, momentum=0.9)
-
-#To make iteration through various batches easier
-total_step = len(train_loader)
-
-for epoch in range(4096):
-    for i, (images, labels) in enumerate(train_loader):
-        images = images.to(device)
-        labels = labels.to(device)
-
-        outputs = model(images)
-        loss = criterion(outputs, labels)
-
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-
-    print('Epoch [{}/{}], Loss: {:.4f}'.format(epoch+1, 4096, loss.item()))
+# #Loss function
+# criterion = nn.CrossEntropyLoss()
+#
+# #Optimizer
+# optimizer = torch.optim.SGD(model.parameters(), lr=0.001, weight_decay=0.005, momentum=0.9)
+#
+# #To make iteration through various batches easier
+# total_step = len(train_loader)
+#
+# for epoch in range(4096):
+#     for i, (images, labels) in enumerate(train_loader):
+#         images = images.to(device)
+#         labels = labels.to(device)
+#
+#         outputs = model(images)
+#         loss = criterion(outputs, labels)
+#
+#         optimizer.zero_grad()
+#         loss.backward()
+#         optimizer.step()
+#
+#     print('Epoch [{}/{}], Loss: {:.4f}'.format(epoch+1, 4096, loss.item()))
