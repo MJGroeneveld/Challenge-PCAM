@@ -13,6 +13,7 @@ import torch.optim as optim
 import torch.nn as nn
 from torch.optim import Adam
 from torch.autograd import Variable
+import torchmetrics
 import numpy as np
 
 # %% Dataloader with pytorch 
@@ -89,7 +90,8 @@ def train(args):
     model = ResNet()
 
     # Check for device
-    device = torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
+    device = torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu") 
+    #deevice = torch.device("mps") if torch.backends.mps.is_available() else torch.device("cpu")
     model.to(device)
 
     print("test hier")
@@ -105,11 +107,12 @@ def train(args):
 
     # define hyperparameters
     e_losses = []
-    running_loss = 0.0
 
     print("for loop")
     for e in range(num_epochs):
+        running_loss = 0.0
         for i, (images, labels) in enumerate(train_loader, 0):
+            
             # get the inputs
             images = Variable(images.to(device))
             labels = Variable(labels.to(device))
@@ -127,27 +130,49 @@ def train(args):
             # adjust parameters based on the calculated gradients
             opt.step()
 
+            # and you can calculate the probabilities, but don't pass them to `nn.CrossEntropyLoss`
+            probs = torch.nn.functional.softmax(outputs, dim=1)
+            print("probs:", probs)
+
+            ''' Set output to 0 or 1 to be able to calculate the accuracy later on'''
+            labels_output = []
+            for i, probability in enumerate(probs):
+                for j, x in enumerate(probability.detach().numpy()):
+                    if x[0] > 0.5:
+                        label = 0
+                    else:
+                        label = 1
+                    labels_output.append(label)
+
             running_loss += loss.item()
-            if i % 2000 == 1999:  # print every 2000 mini-batches
-                print(f'[{epoch + 1}, {i + 1:5d}] loss: {running_loss / 2000:.3f}')
-                running_loss = 0.0
+            
+            #if i % 2000 == 1999:  # print every 2000 mini-batches
+            print(f'[{e + 1}, {i + 1:5d}] loss: {running_loss / (i+1):.3f}')
+            
 
             #Metrics printen
-            #metrics()
+            #metrics(outputs, labels)
 
-def metrics():
-    # defining metric
-    self.train_acc = torchmetrics.Accuracy()
-    self.val_acc = torchmetrics.Accuracy()
+def metrics(outputs, labels):
+    # je hebt je true en je predictions 
 
-    self.train_f1 = torchmetrics.F1Score(multiclass=False)
-    self.val_f1 = torchmetrics.F1Score(multiclass=False)
+    # defining metric 
 
-    self.train_prec = torchmetrics.Precision(multiclass=False)
-    self.val_prec = torchmetrics.Precision(multiclass=False)
+    train_acc = torchmetrics.Accuracy()
+    train_acc(outputs, labels)
+    #val_acc = torchmetrics.Accuracy()
+    #val_acc()
 
-    self.train_rec = torchmetrics.Recall(multiclass=False)
-    self.val_rec = torchmetrics.Recall(multiclass=False)
+    #train_f1 = torchmetrics.F1Score(multiclass=False)
+    #val_f1 = torchmetrics.F1Score(multiclass=False)
+
+    #train_prec = torchmetrics.Precision(multiclass=False)
+    #val_prec = torchmetrics.Precision(multiclass=False)
+
+    #train_rec = torchmetrics.Recall(multiclass=False)
+    #val_rec = torchmetrics.Recall(multiclass=False)
+
+    
 
 if __name__ == '__main__':
     args = {'dim': 16,
