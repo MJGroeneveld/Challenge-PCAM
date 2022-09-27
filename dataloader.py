@@ -90,11 +90,9 @@ def train(args):
     model = ResNet()
 
     # Check for device
-    device = torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu") 
-    #deevice = torch.device("mps") if torch.backends.mps.is_available() else torch.device("cpu")
+    #device = torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu") 
+    device = torch.device("mps") if torch.backends.mps.is_available() else torch.device("cpu")
     model.to(device)
-
-    print("test hier")
 
     # Define stochastic gradient descent optimizer
     opt = torch.optim.SGD(model.parameters(), learning_rate)
@@ -108,7 +106,6 @@ def train(args):
     # define hyperparameters
     e_losses = []
 
-    print("for loop")
     for e in range(num_epochs):
         running_loss = 0.0
         for i, (images, labels) in enumerate(train_loader, 0):
@@ -131,18 +128,18 @@ def train(args):
             opt.step()
 
             # and you can calculate the probabilities, but don't pass them to `nn.CrossEntropyLoss`
-            probs = torch.nn.functional.softmax(outputs, dim=1)
-            print("probs:", probs)
+            #probs = torch.nn.functional.softmax(outputs, dim=1)
+            #print("probs:", probs)
 
             ''' Set output to 0 or 1 to be able to calculate the accuracy later on'''
-            labels_output = []
-            for i, probability in enumerate(probs):
-                for j, x in enumerate(probability.detach().numpy()):
-                    if x[0] > 0.5:
-                        label = 0
-                    else:
-                        label = 1
-                    labels_output.append(label)
+            # labels_output = []
+            # for i, probability in enumerate(probs):
+            #     for j, x in enumerate(probability.detach().numpy()):
+            #         if x[0] > 0.5:
+            #             label = 0
+            #         else:
+            #             label = 1
+            #         labels_output.append(label)
 
             running_loss += loss.item()
             
@@ -179,7 +176,7 @@ if __name__ == '__main__':
             'dropout': 0.3,
             'batch_size': 8,
             'lr': 1e-3,
-            'epochs': 1,
+            'epochs': 10,
             'emb_size': 16,
             'aggregation_type': 'mean',
             'bidirectional': False,  # we are not going to use biRNN
