@@ -1,4 +1,5 @@
 #%% 
+from pyparsing import java_style_comment
 import torch 
 import pandas as pd 
 import h5py 
@@ -15,6 +16,7 @@ from torch.optim import Adam
 from torch.autograd import Variable
 import torchmetrics
 import numpy as np
+from sklearn import metrics
 
 # %% Dataloader with pytorch 
 
@@ -62,6 +64,15 @@ def Dataloaders(data_dir):
 
     return train_loader, valid_loader
 
+# Metrics for train, test, validation set (accuracy)
+# def metrics(total, correct, actual_labels, predicted_outputs):
+#     ''' Set output to 0 or 1 to be able to calculate the accuracy later on'''
+#     _, predicted = torch.max(predicted_outputs.data, 1)
+#     total += actual_labels.size(0)
+#     correct+= (predicted == actual_labels).sum().item()
+#     print(f' Accuracy: {100 * correct // total} %')
+
+
 def train(args):
     dropout = args['dropout']
     learning_rate = args['lr']
@@ -105,9 +116,13 @@ def train(args):
 
     # define hyperparameters
     e_losses = []
+    total = 0
+    correct = 0
 
+    auc = [] 
     for e in range(num_epochs):
         running_loss = 0.0
+
         for i, (images, labels) in enumerate(train_loader, 0):
             
             # get the inputs
@@ -122,7 +137,7 @@ def train(args):
 
             # Compute the loss based on model output and real labels
             loss = criterion(outputs, labels)
-            # backpropagate the loss
+
             loss.backward()
             # adjust parameters based on the calculated gradients
             opt.step()
@@ -131,52 +146,63 @@ def train(args):
             #probs = torch.nn.functional.softmax(outputs, dim=1)
             #print("probs:", probs)
 
-            ''' Set output to 0 or 1 to be able to calculate the accuracy later on'''
-            # labels_output = []
-            # for i, probability in enumerate(probs):
-            #     for j, x in enumerate(probability.detach().numpy()):
-            #         if x[0] > 0.5:
-            #             label = 0
-            #         else:
-            #             label = 1
-            #         labels_output.append(label)
-
             running_loss += loss.item()
             
             #if i % 2000 == 1999:  # print every 2000 mini-batches
             print(f'[{e + 1}, {i + 1:5d}] loss: {running_loss / (i+1):.3f}')
-            
 
-            #Metrics printen
-            #metrics(outputs, labels)
+        #Validaten met validation set
+        #op basis van AUC, accuracy of loss (of gemiddelde ervan). Wij doen AUC
+        #gebruik sklearn voor AUC
+        #hiervoor eerst ROC plot per epoch maken (daaruit haal je 1 AUC per epoch) 
+        #en op basis van die AUC (wat dus een aantal getallen zijn) kan je het beste model halen
+        #check daarmee welk model het beste is, gebruik deze voor het testen
+        #maak nog een plotje van je AUC om te zien hoe mooi die loopt
 
-def metrics(outputs, labels):
-    # je hebt je true en je predictions 
+        #dit was beste model op basis van loss, maar gebruiken we ff niet
+        # print(f'Epoch {e+1} \t\t Training Loss: {running_loss / len(train_loader)} \t\t Validation Loss: {valid_loss / len(valid_loader)}')
+        # if min_valid_loss > valid_loss:
+        #     print(f'Validation Loss Decreased({min_valid_loss:.6f}--->{valid_loss:.6f}) \t Saving The Model')
+        #     min_valid_loss = valid_loss
+        #     # Saving State Dict
+        #     torch.save(model.state_dict(), 'saved_model.pth')
 
-    # defining metric 
+        #dit gebruiken we nu ook even niet
+        # ''' Set output to 0 or 1 to be able to calculate the accuracy later on'''
+        # _, predicted = torch.max(target.data, 1)
+        # total += val_labels.size(0)
+        # correct+= (predicted == val_labels).sum().item()
+        # print(f' Accuracy: {100 * correct // total} %')
 
-    train_acc = torchmetrics.Accuracy()
-    train_acc(outputs, labels)
-    #val_acc = torchmetrics.Accuracy()
-    #val_acc()
+        valid_loss = 0.0
+        model.eval()     # Optional when not using Model Specific layer
 
-    #train_f1 = torchmetrics.F1Score(multiclass=False)
-    #val_f1 = torchmetrics.F1Score(multiclass=False)
+        for i, (val_images, val_labels) in enumerate(valid_loader, 0):
+            val_images = val_images.to(device)
+            val_labels = val_labels.to(device)
+        
+            target = model(val_images)
+            loss = criterion(target,val_labels)
+            valid_loss = loss.item() * val_images.size(0)
 
-    #train_prec = torchmetrics.Precision(multiclass=False)
-    #val_prec = torchmetrics.Precision(multiclass=False)
-
-    #train_rec = torchmetrics.Recall(multiclass=False)
-    #val_rec = torchmetrics.Recall(multiclass=False)
-
+        fpr, tpr, _ = metrics.roc_curve(val_labels, target)
+        plt.plot(fpr,tpr)
+        auc.append(metrics.auc(fpr, tpr))
+        #en dan hier nog je beste model opslaan die je gebruikt voor testen (mbv if min(auc) > auc: net als dat loss stukje hierboven in commentaar)
     
+    plt.plot(auc)
+    plt.title("AUC")
+    plt.xlabel("Epoch")
+    plt.ylabel("AUC")
+
+
 
 if __name__ == '__main__':
     args = {'dim': 16,
             'dropout': 0.3,
             'batch_size': 8,
             'lr': 1e-3,
-            'epochs': 10,
+            'epochs': 1,
             'emb_size': 16,
             'aggregation_type': 'mean',
             'bidirectional': False,  # we are not going to use biRNN
