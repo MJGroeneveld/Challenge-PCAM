@@ -124,15 +124,18 @@ def eval_model(model, dataset, device):
     with torch.no_grad(): # the model will not update parameters
         y_true = []
         predictions = []
-        for data, labels in dataset:
-            data = data.to(device)
+        for images, labels in dataset:
+            images = images.to(device)
             labels = labels.to(device)
-            logits = model(data.type(torch.float32))
+            logits = model(images.type(torch.float32))
+            logits = logits.squeeze(1)
             probs = sigmoid(logits) #compute probabilities
-            _, predicted = torch.max(probs.data, 1)
+            #_, predicted = torch.max(probs.data, 1)
             #y_hat_class = np.where(probs.data<0.5, 0, 1)
-            predictions += [p.item() for p in predicted] #concatenate all predictions
+            predictions += [p.item() for p in probs] #concatenate all predictions
             y_true += [y.item() for y in labels] #concatenate all labels
+    print("predictions", predictions)
+    print("y_true", y_true)
     results = print_metrics_binary(y_true, predictions, logging)
     # return results, predictions (probs), and labels
     return results, predictions, y_true
@@ -272,7 +275,7 @@ def main_test():
     'dropout': 0.3,
     'batch_size': 8,
     'lr': 1e-3,
-    'epochs': 1,
+    'epochs': 10,
     'emb_size': 16,
     'aggregation_type': 'mean',
     'bidirectional': False,  # we are not going to use biRNN
@@ -282,10 +285,11 @@ def main_test():
     'imputation': 'previous',  # imputation method
     'normalizer_state': None}  # we use normalization config
     metrics_results, pred_probs, y_true = test(args)
-
+    print("pred_probs", pred_probs)
+    print("y_true", y_true)
     # Plot roc curve
     resnet_fpr, resnet_tpr, _ = metrics.roc_curve(y_true, pred_probs)
-
+    print("fpr", resnet_fpr)
     # plot the roc curve for the model
     plt.figure()
     plt.ylim(0., 1.0)
@@ -301,12 +305,9 @@ def main_test():
     plt.show()
 
 #%%
-if __name__ == '__main__':
-    main_train() 
+#if __name__ == '__main__':
+#    main_train() 
      
-
 # %%
 if __name__ =='__main__': 
     main_test()
-
-# %%
