@@ -134,8 +134,6 @@ def eval_model(model, dataset, device):
             #y_hat_class = np.where(probs.data<0.5, 0, 1)
             predictions += [p.item() for p in probs] #concatenate all predictions
             y_true += [y.item() for y in labels] #concatenate all labels
-    print("predictions", predictions)
-    print("y_true", y_true)
     results = print_metrics_binary(y_true, predictions, logging)
     # return results, predictions (probs), and labels
     return results, predictions, y_true
@@ -285,16 +283,12 @@ def main_test():
     'imputation': 'previous',  # imputation method
     'normalizer_state': None}  # we use normalization config
     metrics_results, pred_probs, y_true = test(args)
-    print("pred_probs", pred_probs)
-    print("y_true", y_true)
     # Plot roc curve
     resnet_fpr, resnet_tpr, _ = metrics.roc_curve(y_true, pred_probs)
-    print("fpr", resnet_fpr)
     # plot the roc curve for the model
     plt.figure()
     plt.ylim(0., 1.0)
     plt.xlim(0.,1.0)
-    print(resnet_fpr)
     plt.plot(resnet_fpr, resnet_tpr, marker='.', label='resnet', color='darkorange')
     plt.plot([0, 1], [0, 1], color='navy', linestyle='--')
     # axis labels
@@ -305,8 +299,8 @@ def main_test():
     plt.show()
 
 #%%
-#if __name__ == '__main__':
-#    main_train() 
+if __name__ == '__main__':
+   main_train() 
      
 # %%
 if __name__ =='__main__': 
