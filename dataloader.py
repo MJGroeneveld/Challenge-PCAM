@@ -45,6 +45,7 @@ class Dataset(torch.utils.data.Dataset):
 
         return image, label
 
+#%%  
 def Dataloaders(data_dir):
     # Training set:
     train_x = path.join(data_dir, "camelyonpatch_level_2_split_train_x.h5")
@@ -72,7 +73,7 @@ def Dataloaders(data_dir):
 #     correct+= (predicted == actual_labels).sum().item()
 #     print(f' Accuracy: {100 * correct // total} %')
 
-
+#%% Runnen van de train 
 def train(args):
     dropout = args['dropout']
     learning_rate = args['lr']
@@ -177,24 +178,34 @@ def train(args):
         valid_loss = 0.0
         model.eval()     # Optional when not using Model Specific layer
 
-        for i, (val_images, val_labels) in enumerate(valid_loader, 0):
+        for val_images, val_labels in valid_loader:
             val_images = val_images.to(device)
             val_labels = val_labels.to(device)
-        
-            target = model(val_images)
+     
+            target = model(val_images.type(torch.float32))
             loss = criterion(target,val_labels)
             valid_loss = loss.item() * val_images.size(0)
-
-        fpr, tpr, _ = metrics.roc_curve(val_labels, target)
-        plt.plot(fpr,tpr)
-        auc.append(metrics.auc(fpr, tpr))
-        #en dan hier nog je beste model opslaan die je gebruikt voor testen (mbv if min(auc) > auc: net als dat loss stukje hierboven in commentaar)
     
+        print("target", target)
+        print("target detach cpu", target.detach().cpu()) 
+        target = target.detach().cpu()
+        val_labels = val_labels.detach().cpu()
+        _, predicted = torch.max(target.data, 1)
+        print("predicted", predicted)
+        fpr, tpr, _ = metrics.roc_curve(val_labels, predicted)
+        print("fpr", fpr)
+        print("tpr", tpr)
+        plt.plot(fpr,tpr)
+        plt.show() 
+        auc.append(metrics.auc(fpr, tpr))
+        # en dan hier nog je beste model opslaan die je gebruikt voor testen (mbv if min(auc) > auc: net als dat loss stukje hierboven in commentaar)
+    
+    print("auc", auc)
     plt.plot(auc)
     plt.title("AUC")
     plt.xlabel("Epoch")
     plt.ylabel("AUC")
-
+    plt.show()
 
 
 if __name__ == '__main__':
@@ -202,7 +213,7 @@ if __name__ == '__main__':
             'dropout': 0.3,
             'batch_size': 8,
             'lr': 1e-3,
-            'epochs': 1,
+            'epochs': 5,
             'emb_size': 16,
             'aggregation_type': 'mean',
             'bidirectional': False,  # we are not going to use biRNN
