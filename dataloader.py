@@ -185,16 +185,11 @@ def train(args):
             target = model(val_images.type(torch.float32))
             loss = criterion(target,val_labels)
             valid_loss = loss.item() * val_images.size(0)
-    
-        print("target", target)
-        print("target detach cpu", target.detach().cpu()) 
+            
         target = target.detach().cpu()
         val_labels = val_labels.detach().cpu()
         _, predicted = torch.max(target.data, 1)
-        print("predicted", predicted)
         fpr, tpr, _ = metrics.roc_curve(val_labels, predicted)
-        print("fpr", fpr)
-        print("tpr", tpr)
         plt.plot(fpr,tpr)
         plt.show() 
         auc.append(metrics.auc(fpr, tpr))

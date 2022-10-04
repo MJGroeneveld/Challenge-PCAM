@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
 from network import Network
 from resnet import ResNet
+from googlenet import GoogleNet
 import torch.optim as optim
 import torch.nn as nn
 from torch.optim import Adam
@@ -130,9 +131,9 @@ def eval_model(model, dataset, device):
             logits = model(images.type(torch.float32))
             logits = logits.squeeze(1)
             probs = sigmoid(logits) #compute probabilities
-            #_, predicted = torch.max(probs.data, 1)
+            _, predicted = torch.max(probs.data, 1)
             #y_hat_class = np.where(probs.data<0.5, 0, 1)
-            predictions += [p.item() for p in probs] #concatenate all predictions
+            predictions += [p.item() for p in predicted] #concatenate all predictions
             y_true += [y.item() for y in labels] #concatenate all labels
     results = print_metrics_binary(y_true, predictions, logging)
     # return results, predictions (probs), and labels
@@ -172,7 +173,7 @@ def train(args):
     criterion = nn.CrossEntropyLoss()
 
     # path to save model with extension .pt on disk
-    save_model = 'resnet_model.pt'
+    save_model = 'googlenet_model.pt'
     best_val_auc = 0.
 
     # define hyperparameters
@@ -194,7 +195,8 @@ def train(args):
             opt.zero_grad()
 
             # predict classes using images from the training set
-            outputs = model(images.float())
+            #outputs = model(images.float())
+            outputs = model(images.type(torch.float32))
 
             # Compute the loss based on model output and real labels
             loss = criterion(outputs, labels)
@@ -215,16 +217,24 @@ def train(args):
                                   valid_loader,
                                   device)
     
-        metrics_results['epoch'] = e 
+        metrics_results['epoch'] = e + 1 
         # save results of current epoch
         results.append(metrics_results)    
        
         #HIER DAN BEWAREN VAN MODEL EN KIEZEN VAN HET BESTE MODEL 
 
+        max_best_val_auc = results[e]["auroc"]
+        if max_best_val_auc > best_val_auc:
+            print(f'Validation AUC Increased({best_val_auc:.6f}--->{max_best_val_auc:.6f}) \t Saving The Model')
+            best_val_auc = max_best_val_auc
+            # save best model to disk
+            torch.save(model.state_dict(), save_model)
+
 #%% 
 def test(args): 
     # define training and validation datasets
     mode = 'test'
+    best_model = args['best_model']
 
     data_dir = path.join(path.dirname(__file__), "pcamv1")
     _, _, test_loader = Dataloaders(data_dir)
@@ -237,7 +247,7 @@ def test(args):
         break
     
     model = ResNet()
-    # model.load_state_dict(torch.load(best_model))
+    model.load_state_dict(torch.load(best_model))
 
     # Check for device
     #device = torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu") 
@@ -256,7 +266,7 @@ def main_train():
         'dropout': 0.3,
         'batch_size': 8,
         'lr': 1e-3,
-        'epochs': 1,
+        'epochs': 3,
         'emb_size': 16,
         'aggregation_type': 'mean',
         'bidirectional': False,  # we are not going to use biRNN
@@ -269,11 +279,12 @@ def main_train():
 
 #%% 
 def main_test(): 
-    args = {'dim': 16,
+    args = {'best_model':'googlenet_model.pt',
+    'dim': 16,
     'dropout': 0.3,
     'batch_size': 8,
     'lr': 1e-3,
-    'epochs': 10,
+    'epochs': 3,
     'emb_size': 16,
     'aggregation_type': 'mean',
     'bidirectional': False,  # we are not going to use biRNN
@@ -284,12 +295,12 @@ def main_test():
     'normalizer_state': None}  # we use normalization config
     metrics_results, pred_probs, y_true = test(args)
     # Plot roc curve
-    resnet_fpr, resnet_tpr, _ = metrics.roc_curve(y_true, pred_probs)
+    fpr, tpr, _ = metrics.roc_curve(y_true, pred_probs)
     # plot the roc curve for the model
     plt.figure()
     plt.ylim(0., 1.0)
     plt.xlim(0.,1.0)
-    plt.plot(resnet_fpr, resnet_tpr, marker='.', label='resnet', color='darkorange')
+    plt.plot(fpr, tpr, marker='.', label='googlenet', color='darkorange')
     plt.plot([0, 1], [0, 1], color='navy', linestyle='--')
     # axis labels
     plt.xlabel('False Positive Rate')
@@ -304,4 +315,4 @@ if __name__ == '__main__':
      
 # %%
 if __name__ =='__main__': 
-    main_test()
+   main_test()
