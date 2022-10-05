@@ -5,7 +5,7 @@ import pandas as pd
 import h5py 
 import os 
 from os import path
-from plots import plotPatches
+#from plots import plotPatches
 import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
 from network import Network
@@ -22,7 +22,9 @@ import logging
 from sklearn.calibration import calibration_curve
 import matplotlib.lines as mlines
 import matplotlib.transforms as mtransforms
+import time
 
+start_time = time.time()
 # %% Dataloader with pytorch 
 
 class Dataset(torch.utils.data.Dataset): 
@@ -128,7 +130,7 @@ def eval_model(model, dataset, device):
         for images, labels in dataset:
             images = images.to(device)
             labels = labels.to(device)
-            logits = model(images.type(torch.float32))
+            logits = model(images.float())
             logits = logits.squeeze(1)
             probs = sigmoid(logits) #compute probabilities
             _, predicted = torch.max(probs.data, 1)
@@ -156,11 +158,12 @@ def train(args):
         labels = tuple(labels)
         break
 
-    model = ResNet()
+    model = GoogleNet()
 
     # Check for device
-    #device = torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu") 
-    device = torch.device("mps") if torch.backends.mps.is_available() else torch.device("cpu")
+    if torch.cuda.is_available():
+        device = torch.device("cuda:0")
+    #device = torch.device("mps") if torch.backends.mps.is_available() else torch.device("cpu")
     model.to(device)
 
     # Define stochastic gradient descent optimizer
@@ -196,7 +199,7 @@ def train(args):
 
             # predict classes using images from the training set
             #outputs = model(images.float())
-            outputs = model(images.type(torch.float32))
+            outputs = model(images.float())
 
             # Compute the loss based on model output and real labels
             loss = criterion(outputs, labels)
@@ -246,12 +249,13 @@ def test(args):
         labels = tuple(labels)
         break
     
-    model = ResNet()
+    model = GoogleNet()
     model.load_state_dict(torch.load(best_model))
 
     # Check for device
-    #device = torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu") 
-    device = torch.device("mps") if torch.backends.mps.is_available() else torch.device("cpu")
+    if torch.cuda.is_available():
+        device = torch.device("cuda:0")
+    #device = torch.device("mps") if torch.backends.mps.is_available() else torch.device("cpu")
     model.to(device)
 
     metrics_results, pred_probs, y_true = eval_model(model,
@@ -266,7 +270,7 @@ def main_train():
         'dropout': 0.3,
         'batch_size': 8,
         'lr': 1e-3,
-        'epochs': 3,
+        'epochs': 5,
         'emb_size': 16,
         'aggregation_type': 'mean',
         'bidirectional': False,  # we are not going to use biRNN
@@ -283,8 +287,6 @@ def main_test():
     'dim': 16,
     'dropout': 0.3,
     'batch_size': 8,
-    'lr': 1e-3,
-    'epochs': 3,
     'emb_size': 16,
     'aggregation_type': 'mean',
     'bidirectional': False,  # we are not going to use biRNN
@@ -300,7 +302,7 @@ def main_test():
     plt.figure()
     plt.ylim(0., 1.0)
     plt.xlim(0.,1.0)
-    plt.plot(fpr, tpr, marker='.', label='googlenet', color='darkorange')
+    plt.plot(fpr, tpr, marker='.', label='GoogleNet', color='darkorange')
     plt.plot([0, 1], [0, 1], color='navy', linestyle='--')
     # axis labels
     plt.xlabel('False Positive Rate')
@@ -308,6 +310,7 @@ def main_test():
     # show the legend
     plt.legend()
     plt.show()
+    plt.savefig("GoogleNet_5epochs.png")
 
 #%%
 if __name__ == '__main__':
@@ -316,3 +319,6 @@ if __name__ == '__main__':
 # %%
 if __name__ =='__main__': 
    main_test()
+
+difference_time = time.time() - start_time
+print("--- %s seconds ---" % (difference_time//60))
