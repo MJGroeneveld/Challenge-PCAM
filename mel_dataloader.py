@@ -274,7 +274,7 @@ def main_train():
         'emb_size': 16,
         'aggregation_type': 'mean',
         'bidirectional': False,  # we are not going to use biRNN
-        'seed': 42,
+        'seed': 42, ##IS DIT WEL HANDIG OM TE DOEN?
         'steps': 50,  # print loss every num of steps
         'timestep': 1.0,  # observations every hour
         'imputation': 'previous',  # imputation method
@@ -290,8 +290,6 @@ def main_test():
     'emb_size': 16,
     'aggregation_type': 'mean',
     'bidirectional': False,  # we are not going to use biRNN
-    'seed': 42,
-    'steps': 50,  # print loss every num of steps
     'timestep': 1.0,  # observations every hour
     'imputation': 'previous',  # imputation method
     'normalizer_state': None}  # we use normalization config
