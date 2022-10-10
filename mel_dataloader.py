@@ -230,14 +230,14 @@ def train(args):
             # save best model to disk
             torch.save(model.state_dict(), save_model)
     
-    plt.figure(figsize=(20,5))
+    plt.figure(figsize=(20,10))
     plt.xlabel('Epochs')
     plt.ylabel('Loss')
     plt.plot(train_losses, label = "Train loss")
     plt.plot(val_losses, label = "Validation Loss")
     plt.legend()
     plt.show()
-    plt.savefig("Figure Losses.png")
+    plt.savefig("GoogleNet_10epochs_losses.png")
 
 #%% 
 def test(args): 
@@ -315,4 +315,4 @@ if __name__ =='__main__':
    main_test()
 
 difference_time = time.time() - start_time
-print("--- %s seconds ---" % (difference_time//60))
+print("--- %s minutes ---" % (difference_time//60))
