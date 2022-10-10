@@ -8,20 +8,17 @@ from os import path
 #from plots import plotPatches
 import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
-from network import Network
+#from network import Network
 from resnet import ResNet
 from googlenet import GoogleNet
 import torch.optim as optim
 import torch.nn as nn
-from torch.optim import Adam
+#from torch.optim import Adam
 from torch.autograd import Variable
-import torchmetrics
+#import torchmetrics
 import numpy as np
 from sklearn import metrics
 import logging
-from sklearn.calibration import calibration_curve
-import matplotlib.lines as mlines
-import matplotlib.transforms as mtransforms
 import time
 
 start_time = time.time()
@@ -53,30 +50,27 @@ class Dataset(torch.utils.data.Dataset):
         return image, label
 
 #%%  
-def Dataloaders(data_dir):
+def Dataloaders(data_dir, batch_size):
     # Training set:
     train_x = path.join(data_dir, "camelyonpatch_level_2_split_train_x.h5")
     train_y = path.join(data_dir, "camelyonpatch_level_2_split_train_y.h5")
 
     train_loader = DataLoader(
-        Dataset(train_x, train_y), batch_size=20, shuffle=True
-    )
+        Dataset(train_x, train_y), batch_size, shuffle=True)
 
     # Validation set:
     valid_x = path.join(data_dir, 'camelyonpatch_level_2_split_valid_x.h5')
     valid_y = path.join(data_dir, 'camelyonpatch_level_2_split_valid_y.h5')
 
     valid_loader = DataLoader(
-        Dataset(valid_x, valid_y), batch_size=20, shuffle=True
-    )
+        Dataset(valid_x, valid_y), batch_size, shuffle=True)
 
     #Test set: 
     test_x = path.join(data_dir, 'camelyonpatch_level_2_split_test_x.h5')
     test_y = path.join(data_dir, 'camelyonpatch_level_2_split_test_y.h5')
     
     test_loader = DataLoader(
-        Dataset(test_x, test_y), batch_size=20, shuffle=True
-    )
+        Dataset(test_x, test_y), batch_size, shuffle=True)
 
     return train_loader, valid_loader, test_loader 
 
@@ -131,25 +125,27 @@ def eval_model(model, dataset, device):
             images = images.to(device)
             labels = labels.to(device)
             logits = model(images.float())
-            logits = logits.squeeze(1)
-            probs = sigmoid(logits) #compute probabilities
+            logits_squeeze = logits.squeeze(1)
+            probs = sigmoid(logits_squeeze) #compute probabilities
+            #probs = sigmoid(logits)
             _, predicted = torch.max(probs.data, 1)
             #y_hat_class = np.where(probs.data<0.5, 0, 1)
             predictions += [p.item() for p in predicted] #concatenate all predictions
             y_true += [y.item() for y in labels] #concatenate all labels
     results = print_metrics_binary(y_true, predictions, logging)
-    # return results, predictions (probs), and labels
-    return results, predictions, y_true
+
+    return results, predictions, y_true, logits, labels
 
 #%% Runnen van de train 
 def train(args):
     mode = 'train'
     learning_rate = args['lr']
     num_epochs = args['epochs']
+    batch_size = args['batch_size']
 
     # Inladen van data
     data_dir = path.join(path.dirname(__file__), "pcamv1")
-    train_loader, valid_loader, _ = Dataloaders(data_dir)
+    train_loader, valid_loader, _ = Dataloaders(data_dir, batch_size)
 
     for images, labels in train_loader:
         #images to tuple (batch size, 96,96,3)
@@ -180,11 +176,12 @@ def train(args):
     best_val_auc = 0.
 
     # define hyperparameters
-    e_losses = []
+    train_losses = []
     results = []
+    val_losses = []
 
-    auc = [] 
     for e in range(num_epochs):
+        model.train()
         loss_batch = 0.0
         num_batches = 0 
 
@@ -198,7 +195,6 @@ def train(args):
             opt.zero_grad()
 
             # predict classes using images from the training set
-            #outputs = model(images.float())
             outputs = model(images.float())
 
             # Compute the loss based on model output and real labels
@@ -215,16 +211,17 @@ def train(args):
              #if i % 2000 == 1999:  # print every 2000 mini-batches
             print(f'[{e + 1}, {i + 1:5d}] loss: {loss_batch / (i+1):.3f}')
 
-        e_losses.append(loss_batch / num_batches)
-        metrics_results, _, _ = eval_model(model,
+        train_losses.append(loss_batch / num_batches)
+        metrics_results, _, _, logits, val_labels = eval_model(model,
                                   valid_loader,
                                   device)
+        
+        validation_loss = criterion(logits, val_labels)
+        val_losses.append(validation_loss.item())
     
         metrics_results['epoch'] = e + 1 
         # save results of current epoch
         results.append(metrics_results)    
-       
-        #HIER DAN BEWAREN VAN MODEL EN KIEZEN VAN HET BESTE MODEL 
 
         max_best_val_auc = results[e]["auroc"]
         if max_best_val_auc > best_val_auc:
@@ -232,15 +229,25 @@ def train(args):
             best_val_auc = max_best_val_auc
             # save best model to disk
             torch.save(model.state_dict(), save_model)
+    
+    plt.figure(figsize=(20,5))
+    plt.xlabel('Epochs')
+    plt.ylabel('Loss')
+    plt.plot(train_losses, label = "Train loss")
+    plt.plot(val_losses, label = "Validation Loss")
+    plt.legend()
+    plt.show()
+    plt.savefig("Figure Losses.png")
 
 #%% 
 def test(args): 
     # define training and validation datasets
     mode = 'test'
     best_model = args['best_model']
+    batch_size = args['batch_size']
 
     data_dir = path.join(path.dirname(__file__), "pcamv1")
-    _, _, test_loader = Dataloaders(data_dir)
+    _, _, test_loader = Dataloaders(data_dir, batch_size)
 
     for images, labels in test_loader:
         #images to tuple (batch size, 96,96,3)
@@ -258,7 +265,7 @@ def test(args):
     #device = torch.device("mps") if torch.backends.mps.is_available() else torch.device("cpu")
     model.to(device)
 
-    metrics_results, pred_probs, y_true = eval_model(model,
+    metrics_results, pred_probs, y_true, _, _ = eval_model(model,
                                 test_loader,
                                 device)
 
@@ -266,34 +273,23 @@ def test(args):
 
 #%% 
 def main_train(): 
-    args = {'dim': 16,
-        'dropout': 0.3,
-        'batch_size': 8,
+    args = {'dropout': 0.3, #Misschien nog gebruiken
+        'batch_size': 16,
         'lr': 1e-3,
-        'epochs': 5,
-        'emb_size': 16,
-        'aggregation_type': 'mean',
-        'bidirectional': False,  # we are not going to use biRNN
-        'seed': 42, ##IS DIT WEL HANDIG OM TE DOEN?
-        'steps': 50,  # print loss every num of steps
-        'timestep': 1.0,  # observations every hour
-        'imputation': 'previous',  # imputation method
-        'normalizer_state': None}  # we use normalization config
+        'epochs': 10,
+        'normalizer_state': None}  #Misschien nog gebruiken
     train(args)
 
 #%% 
 def main_test(): 
     args = {'best_model':'googlenet_model.pt',
-    'dim': 16,
-    'dropout': 0.3,
-    'batch_size': 8,
-    'emb_size': 16,
-    'aggregation_type': 'mean',
-    'bidirectional': False,  # we are not going to use biRNN
-    'timestep': 1.0,  # observations every hour
-    'imputation': 'previous',  # imputation method
-    'normalizer_state': None}  # we use normalization config
+    'dropout': 0.3, #Misschien nog gebruiken
+    'batch_size': 16,
+    'normalizer_state': None}  #Misschien nog gebruiken
+
     metrics_results, pred_probs, y_true = test(args)
+    print(metrics_results)
+    
     # Plot roc curve
     fpr, tpr, _ = metrics.roc_curve(y_true, pred_probs)
     # plot the roc curve for the model
@@ -308,7 +304,7 @@ def main_test():
     # show the legend
     plt.legend()
     plt.show()
-    plt.savefig("GoogleNet_5epochs.png")
+    plt.savefig("GoogleNet_10epochs.png")
 
 #%%
 if __name__ == '__main__':
