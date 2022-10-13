@@ -1,6 +1,7 @@
 ## ResNet18 zonder aanpasbare LR en zonder DA
 
 #%% 
+from cProfile import label
 from pyparsing import java_style_comment
 import torch 
 import pandas as pd 
@@ -12,6 +13,7 @@ import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
 #from network import Network
 from resnet import ResNet
+from googlenet import GoogleNet
 import torch.optim as optim
 import torch.nn as nn
 #from torch.optim import Adam
@@ -79,13 +81,9 @@ def Dataloaders(data_dir, batch_size):
 
 #%% 
 def print_metrics_binary(y_true, predictions, logging, verbose=1):
-    predictions = np.array(predictions)
-    #print("predictions voor metric: ", predictions)
+    predictions = np.array(predictions)   
     if len(predictions.shape) == 1:
         predictions = np.stack([1 - predictions, predictions]).transpose((1, 0))
-
-    #print("predictions na stacken in metric: ", predictions)
-
     cf = metrics.confusion_matrix(y_true, predictions.argmax(axis=1))
     if verbose:
         logging.info("confusion matrix:")
@@ -127,7 +125,7 @@ def eval_model(model, dataset, device):
     criterion = nn.BCEWithLogitsLoss()
     valid_losses = []
     running_loss = 0
-    model.eval() # the model will not update parameters or perform dropout
+    model.eval() # the model will not update parameters or perfom dropout
     sigmoid = nn.Sigmoid()
     with torch.no_grad(): # the model will not update parameters
         y_true = []
@@ -136,27 +134,23 @@ def eval_model(model, dataset, device):
             images = images.to(device)
             labels = labels.to(device)
             logits = model(images.float())
-            #print("Logits hat voor criterion: ", logits)
             logits_hat = logits.squeeze(1)
+            
             loss = criterion(logits_hat, labels.float())
-            #print("Logits hat na criterion: ", logits_hat)
+
             running_loss += loss.item()
 
-            probs = sigmoid(logits) #compute probabilities
-            #print("probs na sigmoid: ", probs)
+            probs = sigmoid(logits_hat) #compute probabilities
+            
             #values, _ = torch.max(probs, 1)
             
             #y_hat_class = np.where(probs.data<0.5, 0, 1)
             predictions += [p.item() for p in probs] #concatenate all predictions
             y_true += [y.item() for y in labels] #concatenate all labels
     
-    #print("predictions total: ", predictions)
-    #print("y true total: ", y_true)
-
     valid_loss = running_loss/len(dataset)
     valid_losses.append(valid_loss)
     
-    #print("Valid loss", valid_losses)
     results = print_metrics_binary(y_true, predictions, logging)
 
     return results, predictions, y_true, valid_losses
@@ -182,6 +176,11 @@ def train(args):
         images = tuple(images)
         #labels to tuple (batch size, 1)
         labels = tuple(labels)
+        break
+
+    for image_valid, label_valid in valid_loader:
+        image_valid = tuple(image_valid)
+        label_valid = tuple(label_valid)
         break
 
     model = ResNet()
@@ -210,9 +209,11 @@ def train(args):
     val_losses = []
 
     for e in range(num_epochs):
-        model.train()
         loss_batch = 0.0
+        model.train()       
         num_batches = 0 
+
+        print("Epoch: ", e+1)
 
         for i, (images, labels) in enumerate(train_loader, 0):
             num_batches += 1 
@@ -229,22 +230,36 @@ def train(args):
             outputs_hat = outputs.squeeze(1)
             
             # Compute the loss based on model output and real labels
-            loss = criterion(outputs_hat, labels.float())
-            loss_batch += loss.item() 
+            loss = criterion(outputs_hat, labels.float())            
             loss.backward()
             # adjust parameters based on the calculated gradients
             opt.step()
             #scheduler.step()
             
+            loss_batch += loss.item() 
+
             #print(f'[{e + 1}, {i + 1:5d}] loss: {loss_batch / (i+1):.3f}')
 
-        train_losses.append(loss_batch / num_batches)
-        metrics_results, _, _, valid_losses = eval_model(model,
+        train_losses.append(loss_batch / len(train_loader))
+        
+        loss_valid = 0.0
+        model.eval()
+        for i, (image_valid, label_valid) in enumerate(valid_loader, 0):
+            image_valid = Variable(image_valid.to(device))
+            label_valid = Variable(label_valid.to(device))
+
+            output_valid = model(image_valid.float())
+            output_valid = output_valid.squeeze(1)
+
+            loss_val = criterion(output_valid, label_valid.float())
+            loss_valid += loss_val.item()
+
+
+        metrics_results, _, _, _ = eval_model(model,
                                   valid_loader,
                                   device)
         
-        val_losses.append(valid_losses)
-        #print("Val loss", val_losses)
+        val_losses.append(loss_valid / len(valid_loader))
     
         metrics_results['epoch'] = e + 1 
         # save results of current epoch
@@ -264,7 +279,7 @@ def train(args):
     plt.plot(val_losses, label = "Validation Loss")
     plt.legend()
     plt.show()
-    plt.savefig("ResNet_30epochs_batchsize16_losses.png")
+    plt.savefig("ResNet_4epochs_batchsize16_losses.png")
 
 #%% 
 def test(args): 
@@ -303,7 +318,7 @@ def main_train():
     args = {'dropout': 0.3, #Misschien nog gebruiken
         'batch_size': 16,
         'lr': 1e-3,
-        'epochs': 30,
+        'epochs': 4,
         'seed': 42,
         'normalizer_state': None}  #Misschien nog gebruiken
     train(args)
@@ -312,7 +327,7 @@ def main_train():
 def main_test(): 
     args = {'best_model':'resnet_model.pt',
     'dropout': 0.3, #Misschien nog gebruiken
-    'batch_size': 32,
+    'batch_size': 16,
     'normalizer_state': None}  #Misschien nog gebruiken
 
     metrics_results, pred_probs, y_true = test(args)
@@ -332,7 +347,7 @@ def main_test():
     # show the legend
     plt.legend()
     plt.show()
-    plt.savefig("ResNet_30epochs_batchsize16_AUC.png")
+    plt.savefig("ResNet_4epochs_batchsize16_AUC.png")
 
 #%%
 if __name__ == '__main__':
