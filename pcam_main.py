@@ -1,3 +1,5 @@
+## ResNet18 zonder aanpasbare LR en zonder DA
+
 #%% 
 from pyparsing import java_style_comment
 import torch 
@@ -10,7 +12,6 @@ import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
 #from network import Network
 from resnet import ResNet
-from googlenet import GoogleNet
 import torch.optim as optim
 import torch.nn as nn
 #from torch.optim import Adam
@@ -79,8 +80,12 @@ def Dataloaders(data_dir, batch_size):
 #%% 
 def print_metrics_binary(y_true, predictions, logging, verbose=1):
     predictions = np.array(predictions)
+    #print("predictions voor metric: ", predictions)
     if len(predictions.shape) == 1:
         predictions = np.stack([1 - predictions, predictions]).transpose((1, 0))
+
+    #print("predictions na stacken in metric: ", predictions)
+
     cf = metrics.confusion_matrix(y_true, predictions.argmax(axis=1))
     if verbose:
         logging.info("confusion matrix:")
@@ -119,10 +124,10 @@ def print_metrics_binary(y_true, predictions, logging, verbose=1):
 #%% 
 #eval model
 def eval_model(model, dataset, device):
-    criterion = nn.CrossEntropyLoss()
+    criterion = nn.BCEWithLogitsLoss()
     valid_losses = []
     running_loss = 0
-    model.eval() # the model will not update parameters or perfom dropout
+    model.eval() # the model will not update parameters or perform dropout
     sigmoid = nn.Sigmoid()
     with torch.no_grad(): # the model will not update parameters
         y_true = []
@@ -131,22 +136,27 @@ def eval_model(model, dataset, device):
             images = images.to(device)
             labels = labels.to(device)
             logits = model(images.float())
-            
-            loss = criterion(logits, labels)
+            #print("Logits hat voor criterion: ", logits)
+            logits_hat = logits.squeeze(1)
+            loss = criterion(logits_hat, labels.float())
+            #print("Logits hat na criterion: ", logits_hat)
             running_loss += loss.item()
 
             probs = sigmoid(logits) #compute probabilities
-            
-            values, _ = torch.max(probs, 1)
+            #print("probs na sigmoid: ", probs)
+            #values, _ = torch.max(probs, 1)
             
             #y_hat_class = np.where(probs.data<0.5, 0, 1)
-            predictions += [p.item() for p in values] #concatenate all predictions
+            predictions += [p.item() for p in probs] #concatenate all predictions
             y_true += [y.item() for y in labels] #concatenate all labels
     
+    #print("predictions total: ", predictions)
+    #print("y true total: ", y_true)
+
     valid_loss = running_loss/len(dataset)
     valid_losses.append(valid_loss)
     
-    print("Valid loss", valid_losses)
+    #print("Valid loss", valid_losses)
     results = print_metrics_binary(y_true, predictions, logging)
 
     return results, predictions, y_true, valid_losses
@@ -157,7 +167,12 @@ def train(args):
     learning_rate = args['lr']
     num_epochs = args['epochs']
     batch_size = args['batch_size']
+    seed = args['seed']
 
+    if seed:
+        torch.manual_seed(seed)
+        np.random.seed(seed)
+    
     # Inladen van data
     data_dir = path.join(path.dirname(__file__), "pcamv1")
     train_loader, valid_loader, _ = Dataloaders(data_dir, batch_size)
@@ -170,7 +185,7 @@ def train(args):
         break
 
     model = ResNet()
-
+    
     # Check for device
     if torch.cuda.is_available():
         device = torch.device("cuda:0")
@@ -179,11 +194,11 @@ def train(args):
 
     # Define stochastic gradient descent optimizer
     opt = torch.optim.SGD(model.parameters(), learning_rate)
-    lambda1 = lambda epoch: num_epochs / 10 
-    scheduler = lr_scheduler.LambdaLR(opt, lambda1)
+    #lambda1 = lambda epoch: num_epochs / 10 
+    #scheduler = lr_scheduler.LambdaLR(opt, lambda1)
 
     # Cross entropy loss function
-    criterion = nn.CrossEntropyLoss()
+    criterion = nn.BCEWithLogitsLoss()
 
     # path to save model with extension .pt on disk
     save_model = 'resnet_model.pt'
@@ -211,16 +226,17 @@ def train(args):
   
             # predict classes using images from the training set
             outputs = model(images.float())
+            outputs_hat = outputs.squeeze(1)
             
             # Compute the loss based on model output and real labels
-            loss = criterion(outputs, labels)
+            loss = criterion(outputs_hat, labels.float())
             loss_batch += loss.item() 
             loss.backward()
             # adjust parameters based on the calculated gradients
             opt.step()
-            scheduler.step()
+            #scheduler.step()
             
-            print(f'[{e + 1}, {i + 1:5d}] loss: {loss_batch / (i+1):.3f}')
+            #print(f'[{e + 1}, {i + 1:5d}] loss: {loss_batch / (i+1):.3f}')
 
         train_losses.append(loss_batch / num_batches)
         metrics_results, _, _, valid_losses = eval_model(model,
@@ -228,7 +244,7 @@ def train(args):
                                   device)
         
         val_losses.append(valid_losses)
-        print("Val loss", val_losses)
+        #print("Val loss", val_losses)
     
         metrics_results['epoch'] = e + 1 
         # save results of current epoch
@@ -248,7 +264,7 @@ def train(args):
     plt.plot(val_losses, label = "Validation Loss")
     plt.legend()
     plt.show()
-    plt.savefig("ResNet_5epochs_losses.png")
+    plt.savefig("ResNet_30epochs_batchsize16_losses.png")
 
 #%% 
 def test(args): 
@@ -285,9 +301,10 @@ def test(args):
 #%% 
 def main_train(): 
     args = {'dropout': 0.3, #Misschien nog gebruiken
-        'batch_size': 30,
+        'batch_size': 16,
         'lr': 1e-3,
-        'epochs': 5,
+        'epochs': 30,
+        'seed': 42,
         'normalizer_state': None}  #Misschien nog gebruiken
     train(args)
 
@@ -295,7 +312,7 @@ def main_train():
 def main_test(): 
     args = {'best_model':'resnet_model.pt',
     'dropout': 0.3, #Misschien nog gebruiken
-    'batch_size': 30,
+    'batch_size': 32,
     'normalizer_state': None}  #Misschien nog gebruiken
 
     metrics_results, pred_probs, y_true = test(args)
@@ -315,7 +332,7 @@ def main_test():
     # show the legend
     plt.legend()
     plt.show()
-    plt.savefig("ResNet_5epochs.png")
+    plt.savefig("ResNet_30epochs_batchsize16_AUC.png")
 
 #%%
 if __name__ == '__main__':
