@@ -122,9 +122,6 @@ def print_metrics_binary(y_true, predictions, logging, verbose=1):
 #%% 
 #eval model
 def eval_model(model, dataset, device):
-    criterion = nn.BCEWithLogitsLoss()
-    valid_losses = []
-    running_loss = 0
     model.eval() # the model will not update parameters or perfom dropout
     sigmoid = nn.Sigmoid()
     with torch.no_grad(): # the model will not update parameters
@@ -135,10 +132,6 @@ def eval_model(model, dataset, device):
             labels = labels.to(device)
             logits = model(images.float())
             logits_hat = logits.squeeze(1)
-            
-            loss = criterion(logits_hat, labels.float())
-
-            running_loss += loss.item()
 
             probs = sigmoid(logits_hat) #compute probabilities
             
@@ -147,13 +140,10 @@ def eval_model(model, dataset, device):
             #y_hat_class = np.where(probs.data<0.5, 0, 1)
             predictions += [p.item() for p in probs] #concatenate all predictions
             y_true += [y.item() for y in labels] #concatenate all labels
-    
-    valid_loss = running_loss/len(dataset)
-    valid_losses.append(valid_loss)
-    
+        
     results = print_metrics_binary(y_true, predictions, logging)
 
-    return results, predictions, y_true, valid_losses
+    return results, predictions, y_true
 
 #%% Runnen van de train 
 def train(args):
@@ -166,6 +156,9 @@ def train(args):
     if seed:
         torch.manual_seed(seed)
         np.random.seed(seed)
+        torch.cuda.manual_seed_all(seed)
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
     
     # Inladen van data
     data_dir = path.join(path.dirname(__file__), "pcamv1")
@@ -209,14 +202,11 @@ def train(args):
     val_losses = []
 
     for e in range(num_epochs):
-        loss_batch = 0.0
         model.train()       
-        num_batches = 0 
-
+        loss_batch = 0.0
         print("Epoch: ", e+1)
 
         for i, (images, labels) in enumerate(train_loader, 0):
-            num_batches += 1 
             
             # get the inputs
             images = Variable(images.to(device))
@@ -232,12 +222,12 @@ def train(args):
             # Compute the loss based on model output and real labels
             loss = criterion(outputs_hat, labels.float())            
             loss.backward()
+            
             # adjust parameters based on the calculated gradients
             opt.step()
             #scheduler.step()
             
             loss_batch += loss.item() 
-
             #print(f'[{e + 1}, {i + 1:5d}] loss: {loss_batch / (i+1):.3f}')
 
         train_losses.append(loss_batch / len(train_loader))
@@ -254,8 +244,7 @@ def train(args):
             loss_val = criterion(output_valid, label_valid.float())
             loss_valid += loss_val.item()
 
-
-        metrics_results, _, _, _ = eval_model(model,
+        metrics_results, _, _ = eval_model(model,
                                   valid_loader,
                                   device)
         
@@ -279,7 +268,7 @@ def train(args):
     plt.plot(val_losses, label = "Validation Loss")
     plt.legend()
     plt.show()
-    plt.savefig("ResNet_4epochs_batchsize16_losses.png")
+    plt.savefig("ResNet_30epochs_batchsize16_losses.png")
 
 #%% 
 def test(args): 
@@ -307,7 +296,7 @@ def test(args):
     #device = torch.device("mps") if torch.backends.mps.is_available() else torch.device("cpu")
     model.to(device)
 
-    metrics_results, pred_probs, y_true, _ = eval_model(model,
+    metrics_results, pred_probs, y_true = eval_model(model,
                                 test_loader,
                                 device)
 
@@ -318,7 +307,7 @@ def main_train():
     args = {'dropout': 0.3, #Misschien nog gebruiken
         'batch_size': 16,
         'lr': 1e-3,
-        'epochs': 4,
+        'epochs': 30,
         'seed': 42,
         'normalizer_state': None}  #Misschien nog gebruiken
     train(args)
@@ -347,7 +336,7 @@ def main_test():
     # show the legend
     plt.legend()
     plt.show()
-    plt.savefig("ResNet_4epochs_batchsize16_AUC.png")
+    plt.savefig("ResNet_30epochs_batchsize16_AUC.png")
 
 #%%
 if __name__ == '__main__':
