@@ -11,12 +11,11 @@ from os import path
 #from plots import plotPatches
 import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
-#from network import Network
+from networknet import Network
 from resnet import ResNet
 from googlenet import GoogleNet
 import torch.optim as optim
 import torch.nn as nn
-#from torch.optim import Adam
 from torch.autograd import Variable
 #import torchmetrics
 import numpy as np
@@ -164,19 +163,7 @@ def train(args):
     data_dir = path.join(path.dirname(__file__), "pcamv1")
     train_loader, valid_loader, _ = Dataloaders(data_dir, batch_size)
 
-    for images, labels in train_loader:
-        #images to tuple (batch size, 96,96,3)
-        images = tuple(images)
-        #labels to tuple (batch size, 1)
-        labels = tuple(labels)
-        break
-
-    for image_valid, label_valid in valid_loader:
-        image_valid = tuple(image_valid)
-        label_valid = tuple(label_valid)
-        break
-
-    model = ResNet()
+    model = Network()
     
     # Check for device
     if torch.cuda.is_available():
@@ -185,7 +172,7 @@ def train(args):
     model.to(device)
 
     # Define stochastic gradient descent optimizer
-    opt = torch.optim.SGD(model.parameters(), learning_rate)
+    opt = torch.optim.Adam(model.parameters(), learning_rate)
     #lambda1 = lambda epoch: num_epochs / 10 
     #scheduler = lr_scheduler.LambdaLR(opt, lambda1)
 
@@ -193,7 +180,7 @@ def train(args):
     criterion = nn.BCEWithLogitsLoss()
 
     # path to save model with extension .pt on disk
-    save_model = 'resnet_model.pt'
+    save_model = 'network_model.pt'
     best_val_auc = 0.
 
     # define hyperparameters
@@ -203,7 +190,7 @@ def train(args):
 
     for e in range(num_epochs):
         model.train()       
-        loss_batch = 0.0
+        loss_epoch = 0.0
         print("Epoch: ", e+1)
 
         for i, (images, labels) in enumerate(train_loader, 0):
@@ -220,17 +207,17 @@ def train(args):
             outputs_hat = outputs.squeeze(1)
             
             # Compute the loss based on model output and real labels
-            loss = criterion(outputs_hat, labels.float())            
-            loss.backward()
+            loss_batch = criterion(outputs_hat, labels.float())            
+            loss_batch.backward()
             
             # adjust parameters based on the calculated gradients
             opt.step()
             #scheduler.step()
             
-            loss_batch += loss.item() 
+            loss_epoch += loss_batch.item() 
             #print(f'[{e + 1}, {i + 1:5d}] loss: {loss_batch / (i+1):.3f}')
 
-        train_losses.append(loss_batch / len(train_loader))
+        train_losses.append(loss_epoch / len(train_loader))
         
         loss_valid = 0.0
         model.eval()
@@ -268,7 +255,7 @@ def train(args):
     plt.plot(val_losses, label = "Validation Loss")
     plt.legend()
     plt.show()
-    plt.savefig("ResNet_30epochs_batchsize16_losses.png")
+    plt.savefig("Network_30epochs_batchsize32_losses.png")
 
 #%% 
 def test(args): 
@@ -279,15 +266,8 @@ def test(args):
 
     data_dir = path.join(path.dirname(__file__), "pcamv1")
     _, _, test_loader = Dataloaders(data_dir, batch_size)
-
-    for images, labels in test_loader:
-        #images to tuple (batch size, 96,96,3)
-        images = tuple(images)
-        #labels to tuple (batch size, 1)
-        labels = tuple(labels)
-        break
     
-    model = ResNet()
+    model = Network()
     model.load_state_dict(torch.load(best_model))
 
     # Check for device
@@ -305,7 +285,7 @@ def test(args):
 #%% 
 def main_train(): 
     args = {'dropout': 0.3, #Misschien nog gebruiken
-        'batch_size': 16,
+        'batch_size': 32,
         'lr': 1e-3,
         'epochs': 30,
         'seed': 42,
@@ -314,9 +294,9 @@ def main_train():
 
 #%% 
 def main_test(): 
-    args = {'best_model':'resnet_model.pt',
+    args = {'best_model':'network_model.pt',
     'dropout': 0.3, #Misschien nog gebruiken
-    'batch_size': 16,
+    'batch_size': 32,
     'normalizer_state': None}  #Misschien nog gebruiken
 
     metrics_results, pred_probs, y_true = test(args)
@@ -328,7 +308,7 @@ def main_test():
     plt.figure()
     plt.ylim(0., 1.0)
     plt.xlim(0.,1.0)
-    plt.plot(fpr, tpr, marker='.', label='ResNet', color='darkorange')
+    plt.plot(fpr, tpr, marker='.', label='Network', color='darkorange')
     plt.plot([0, 1], [0, 1], color='navy', linestyle='--')
     # axis labels
     plt.xlabel('False Positive Rate')
@@ -336,7 +316,7 @@ def main_test():
     # show the legend
     plt.legend()
     plt.show()
-    plt.savefig("ResNet_30epochs_batchsize16_AUC.png")
+    plt.savefig("Network_30epochs_batchsize32_AUC.png")
 
 #%%
 if __name__ == '__main__':
