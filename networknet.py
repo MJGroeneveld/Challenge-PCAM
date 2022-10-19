@@ -47,13 +47,9 @@ class Network(pl.LightningModule):
         )
         
         self.classifier = nn.Sequential(
-            nn.AdaptiveAvgPool2d((3,3)), 
+            nn.AdaptiveAvgPool2d(output_size=(3,3)), 
             nn.Flatten(),
             nn.Linear(in_features = 3*3*512, out_features = 1),
-            # nn.ReLU(),
-            # nn.Linear(in_features = 128, out_features = 32), 
-            # nn.ReLU(), 
-            # nn.Linear(in_features = 32, out_features = 1)
         )
 
     def forward(self, x):
